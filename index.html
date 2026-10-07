@@ -87,6 +87,7 @@
                     <button onclick="exportData()" title="Export JSON Data" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200">
                         <i data-lucide="download" class="w-4 h-4"></i>
                     </button>
+                    <button onclick="clearAllData()" title="Clear all planner data" class="p-2 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     <label title="Import JSON Data" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer">
                         <i data-lucide="upload" class="w-4 h-4"></i>
                         <input type="file" id="import-file-input" onchange="importData(event)" class="hidden" accept=".json">
@@ -510,6 +511,7 @@
         <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
             <h3 class="text-base font-bold text-slate-900">Create New Course</h3>
             <input type="text" id="new-course-name" placeholder="e.g. Head & Neck, Neuroanatomy" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
+            <div><label class="block text-xs font-semibold text-slate-700 mb-1">Course Color</label><input type="color" id="new-course-color" value="#2563eb" class="w-full h-10 border border-slate-300 rounded-lg p-1 bg-white"></div>
             <div class="flex justify-end space-x-2">
                 <button onclick="closeModal('add-course-modal')" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
                 <button onclick="createCourseFromModal()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">Create</button>
@@ -608,15 +610,75 @@
                     appState = JSON.parse(saved);
                 } catch(e) {
                     console.error("Failed to parse saved state", e);
-                    seedMockData();
+                    initializeBlankData();
                 }
             } else {
-                seedMockData();
+                initializeBlankData();
             }
         }
 
         function saveData() {
             localStorage.setItem('anki_task_med_data', JSON.stringify(appState));
+        }
+
+
+        function initializeBlankData() {
+            appState = { courses: [], lectures: [], tasks: [], templates: [...DEFAULT_TEMPLATES] };
+            saveData();
+        }
+
+        function getCourseColor(courseId) {
+            return (appState.courses.find(c => c.id === courseId) || {}).color || '#2563eb';
+        }
+
+        function editCourse(courseId) {
+            const course = appState.courses.find(c => c.id === courseId); if (!course) return;
+            const name = prompt('Edit course name:', course.name); if (!name || !name.trim()) return;
+            const color = prompt('Course color (hex, e.g. #7c3aed):', course.color || '#2563eb');
+            course.name = name.trim();
+            if (/^#[0-9A-Fa-f]{6}$/.test(color || '')) course.color = color;
+            saveData(); refreshUI();
+        }
+        function deleteCourse(courseId) {
+            const course = appState.courses.find(c => c.id === courseId); if (!course) return;
+            if (!confirm(`Delete ${course.name} and all of its lectures/tasks? This cannot be undone.`)) return;
+            const lectureIds = appState.lectures.filter(l => l.courseId === courseId).map(l => l.id);
+            appState.tasks = appState.tasks.filter(t => !lectureIds.includes(t.lectureId));
+            appState.lectures = appState.lectures.filter(l => l.courseId !== courseId);
+            appState.courses = appState.courses.filter(c => c.id !== courseId);
+            saveData(); switchTab('courses');
+        }
+        function editLecture(lectureId) {
+            const lecture = appState.lectures.find(l => l.id === lectureId); if (!lecture) return;
+            const title = prompt('Edit lecture title:', lecture.title); if (!title || !title.trim()) return;
+            lecture.title = title.trim(); saveData(); refreshUI();
+        }
+        function deleteLecture(lectureId) {
+            const lecture = appState.lectures.find(l => l.id === lectureId); if (!lecture) return;
+            if (!confirm(`Delete ${lecture.title} and all of its tasks?`)) return;
+            appState.tasks = appState.tasks.filter(t => t.lectureId !== lectureId);
+            appState.lectures = appState.lectures.filter(l => l.id !== lectureId);
+            saveData(); switchTab('courses');
+        }
+        function editTask(taskId) {
+            const task = appState.tasks.find(t => t.id === taskId); if (!task) return;
+            const name = prompt('Edit task name/type:', task.taskType); if (!name || !name.trim()) return;
+            const due = prompt('Next review date (YYYY-MM-DD):', task.dueDate || getTodayISO());
+            task.taskType = name.trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(due || '')) task.dueDate = due;
+            saveData(); openLectureDetail(task.lectureId);
+        }
+        function deleteTask(taskId) {
+            const task = appState.tasks.find(t => t.id === taskId); if (!task) return;
+            if (!confirm(`Delete task “${task.taskType}”?`)) return;
+            const lectureId = task.lectureId;
+            appState.tasks = appState.tasks.filter(t => t.id !== taskId);
+            saveData(); openLectureDetail(lectureId);
+        }
+        function clearAllData() {
+            if (!confirm('Clear ALL courses, lectures, tasks, and study history? This cannot be undone.')) return;
+            if (!confirm('Final confirmation: permanently clear your planner?')) return;
+            initializeBlankData(); refreshUI(); switchTab('today');
         }
 
         function seedMockData() {
@@ -845,7 +907,7 @@
                 <div class="bg-white p-4 rounded-xl border ${isOverdue ? 'border-red-200 bg-red-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div class="space-y-1">
                         <div class="flex items-center space-x-2">
-                            <span class="text-xs font-semibold text-blue-600">${escapeHTML(course.name)}</span>
+                            <span class="text-xs font-semibold" style="color:${course.color || '#2563eb'}">${escapeHTML(course.name)}</span>
                             <span class="text-slate-300">•</span>
                             <span class="text-xs text-slate-500 font-medium">${escapeHTML(lecture.title)}</span>
                             ${overdueBadge}
@@ -1209,8 +1271,9 @@
                             <div class="space-y-1 overflow-y-auto custom-scrollbar flex-1">
                                 ${tasksForDay.map(t => {
                                     const lecture = getLectureById(t.lectureId);
+                                    const color = getCourseColor(lecture.courseId);
                                     return `
-                                        <div onclick="openRatingModal('${t.id}')" title="${escapeHTML(lecture.title)} - ${escapeHTML(t.taskType)}" class="bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] p-1 rounded font-medium truncate cursor-pointer">
+                                        <div onclick="openRatingModal('${t.id}')" title="${escapeHTML(lecture.title)} - ${escapeHTML(t.taskType)}" style="border-left:4px solid ${color}; background:${color}18; color:${color}" class="text-[10px] p-1 rounded font-semibold truncate cursor-pointer">
                                             ${escapeHTML(t.taskType)}
                                         </div>
                                     `;
@@ -1313,10 +1376,11 @@
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div class="flex items-center space-x-2">
-                                <i data-lucide="folder-open" class="w-5 h-5 text-blue-600"></i>
+                                <span class="w-3 h-3 rounded-full" style="background:${course.color || '#2563eb'}"></span>
+                                <i data-lucide="folder-open" class="w-5 h-5" style="color:${course.color || '#2563eb'}"></i>
                                 <h3 class="text-lg font-bold text-slate-900">${escapeHTML(course.name)}</h3>
                             </div>
-                            <span class="text-xs text-slate-500 font-medium">${lectures.length} Lectures</span>
+                            <div class="flex items-center gap-2"><span class="text-xs text-slate-500 font-medium">${lectures.length} Lectures</span><button onclick="editCourse('${course.id}')" class="p-1 text-slate-400 hover:text-blue-600" title="Edit course"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteCourse('${course.id}')" class="p-1 text-slate-400 hover:text-red-600" title="Delete course"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1350,7 +1414,7 @@
                             }">${t.status || 'Learning'}</span>
                         </td>
                         <td class="py-3 px-4 text-right">
-                            <button onclick="openRatingModal('${t.id}')" class="bg-blue-600 text-white font-semibold text-[11px] px-2.5 py-1 rounded hover:bg-blue-700">Review</button>
+                            <div class="flex justify-end gap-1"><button onclick="openRatingModal('${t.id}')" class="bg-blue-600 text-white font-semibold text-[11px] px-2.5 py-1 rounded hover:bg-blue-700">Review</button><button onclick="editTask('${t.id}')" class="p-1 text-slate-400 hover:text-blue-600" title="Edit task"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button><button onclick="deleteTask('${t.id}')" class="p-1 text-slate-400 hover:text-red-600" title="Delete task"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button></div>
                         </td>
                     </tr>
                 `;
@@ -1366,9 +1430,7 @@
                             <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${escapeHTML(course.name)}</span>
                             <h2 class="text-2xl font-bold text-slate-900">${escapeHTML(lecture.title)}</h2>
                         </div>
-                        <button onclick="promptAddTaskToLecture('${lecture.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-semibold">
-                            + Add Task to Lecture
-                        </button>
+                        <div class="flex gap-2"><button onclick="editLecture('${lecture.id}')" class="border border-slate-300 text-slate-600 text-xs px-3 py-2 rounded-lg font-semibold">Edit Lecture</button><button onclick="deleteLecture('${lecture.id}')" class="border border-red-200 text-red-600 text-xs px-3 py-2 rounded-lg font-semibold">Delete</button><button onclick="promptAddTaskToLecture('${lecture.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-semibold">+ Add Task to Lecture</button></div>
                     </div>
 
                     <!-- Tasks Table -->
@@ -1604,7 +1666,8 @@
             const name = document.getElementById('new-course-name').value.trim();
             if (!name) return;
 
-            const newCourse = { id: 'c_' + Date.now(), name: name };
+            const color = document.getElementById('new-course-color').value || '#2563eb';
+            const newCourse = { id: 'c_' + Date.now(), name: name, color: color };
             appState.courses.push(newCourse);
             saveData();
             closeModal('add-course-modal');
