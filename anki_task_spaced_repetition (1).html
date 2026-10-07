@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnkiTask - Medical Study Spaced Repetition</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.03);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.15);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.25);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-blue-600 text-white p-2 rounded-xl shadow-md flex items-center justify-center">
+                        <i data-lucide="repeat" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <span class="font-bold text-xl text-slate-900 tracking-tight">Anki<span class="text-blue-600">Task</span></span>
+                        <span class="hidden sm:inline-block text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full ml-2">Med Repetition</span>
+                    </div>
+                </div>
+
+                <!-- Global Search -->
+                <div class="flex-1 max-w-md mx-4 hidden md:block">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="global-search" oninput="handleSearch(this.value)" placeholder="Search courses, lectures, or tasks... (Ctrl+K)" 
+                            class="w-full pl-9 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+                        <div id="search-results-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto custom-scrollbar"></div>
+                    </div>
+                </div>
+
+                <!-- Top Right Actions -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="openModal('quick-add-modal')" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2 rounded-lg shadow-sm flex items-center space-x-2 transition">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">+ Record Study</span>
+                    </button>
+                    <button onclick="exportData()" title="Export JSON Data" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                    </button>
+                    <label title="Import JSON Data" class="p-2 text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-200 cursor-pointer">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        <input type="file" id="import-file-input" onchange="importData(event)" class="hidden" accept=".json">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6">
+
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 flex-shrink-0">
+            <nav class="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-1 sticky top-20">
+                <button onclick="switchTab('today')" id="nav-today" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition bg-blue-50 text-blue-700">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                        <span>Today Dashboard</span>
+                    </div>
+                    <span id="badge-due-today" class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                </button>
+
+                <button onclick="switchTab('upcoming')" id="nav-upcoming" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="calendar-days" class="w-4 h-4"></i>
+                        <span>Upcoming Reviews</span>
+                    </div>
+                    <span id="badge-upcoming-count" class="bg-slate-200 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">0</span>
+                </button>
+
+                <button onclick="switchTab('calendar')" id="nav-calendar" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="calendar" class="w-4 h-4"></i>
+                        <span>Calendar View</span>
+                    </div>
+                </button>
+
+                <button onclick="switchTab('courses')" id="nav-courses" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span>Courses & Lectures</span>
+                    </div>
+                    <span id="badge-courses-count" class="text-xs text-slate-400 font-normal">0</span>
+                </button>
+
+                <button onclick="switchTab('workload')" id="nav-workload" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                        <span>Workload Manager</span>
+                    </div>
+                </button>
+
+                <button onclick="switchTab('templates')" id="nav-templates" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    <div class="flex items-center space-x-3">
+                        <i data-lucide="copy-check" class="w-4 h-4"></i>
+                        <span>Task Templates</span>
+                    </div>
+                </button>
+
+                <hr class="my-3 border-slate-100">
+
+                <div class="px-3 py-2">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Study Summary</p>
+                    <div class="space-y-1.5 text-xs text-slate-600">
+                        <div class="flex justify-between">
+                            <span>Overdue:</span>
+                            <span id="side-overdue-count" class="font-semibold text-red-600">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Due Today:</span>
+                            <span id="side-today-count" class="font-semibold text-amber-600">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Completed Today:</span>
+                            <span id="side-completed-count" class="font-semibold text-emerald-600">0</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 min-w-0">
+
+            <!-- 1. TODAY DASHBOARD VIEW -->
+            <section id="view-today" class="space-y-6">
+                <!-- Daily Stats Bar -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                        <div class="p-3 bg-red-100 text-red-600 rounded-lg">
+                            <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-overdue">0</div>
+                            <div class="text-xs text-slate-500 font-medium">Overdue</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                        <div class="p-3 bg-amber-100 text-amber-600 rounded-lg">
+                            <i data-lucide="clock" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-due-today">0</div>
+                            <div class="text-xs text-slate-500 font-medium">Due Today</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                        <div class="p-3 bg-emerald-100 text-emerald-600 rounded-lg">
+                            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-completed-today">0</div>
+                            <div class="text-xs text-slate-500 font-medium">Done Today</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                        <div class="p-3 bg-blue-100 text-blue-600 rounded-lg">
+                            <i data-lucide="target" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-remaining">0</div>
+                            <div class="text-xs text-slate-500 font-medium">Remaining</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overdue Tasks Section -->
+                <div id="section-overdue-wrapper" class="space-y-3 hidden">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600"></i>
+                        <h2 class="text-lg font-bold text-red-700">Overdue Tasks</h2>
+                        <span id="badge-overdue-header" class="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                    <div id="container-overdue-tasks" class="space-y-3"></div>
+                </div>
+
+                <!-- Due Today Section -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="calendar" class="w-5 h-5 text-blue-600"></i>
+                            <h2 class="text-lg font-bold text-slate-900">Study Tasks Due Today</h2>
+                        </div>
+                        <span class="text-xs text-slate-500 font-medium" id="today-date-display"></span>
+                    </div>
+                    <div id="container-today-tasks" class="space-y-3"></div>
+                </div>
+
+                <!-- Completed Today Section -->
+                <div id="section-completed-wrapper" class="space-y-3 pt-4 border-t border-slate-200">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
+                        <h2 class="text-lg font-semibold text-slate-800">Completed Today</h2>
+                        <span id="badge-completed-header" class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                    </div>
+                    <div id="container-completed-tasks" class="space-y-2"></div>
+                </div>
+            </section>
+
+            <!-- 2. UPCOMING REVIEWS VIEW -->
+            <section id="view-upcoming" class="space-y-6 hidden">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                        <h2 class="text-xl font-bold text-slate-900">Upcoming Review Queue</h2>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select id="filter-course" onchange="renderUpcomingView()" class="bg-slate-50 border border-slate-300 rounded-lg text-xs p-2">
+                                <option value="ALL">All Courses</option>
+                            </select>
+                            <select id="filter-task-type" onchange="renderUpcomingView()" class="bg-slate-50 border border-slate-300 rounded-lg text-xs p-2">
+                                <option value="ALL">All Task Types</option>
+                            </select>
+                            <select id="filter-status" onchange="renderUpcomingView()" class="bg-slate-50 border border-slate-300 rounded-lg text-xs p-2">
+                                <option value="ALL">All Statuses</option>
+                                <option value="New">New</option>
+                                <option value="Learning">Learning</option>
+                                <option value="Reviewing">Reviewing</option>
+                                <option value="Mastered">Mastered</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="container-upcoming-groups" class="space-y-6"></div>
+            </section>
+
+            <!-- 3. CALENDAR VIEW -->
+            <section id="view-calendar" class="space-y-4 hidden">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center space-x-3">
+                        <h2 id="calendar-month-year" class="text-xl font-bold text-slate-900">October 2026</h2>
+                        <div class="flex items-center space-x-1 border border-slate-200 rounded-lg overflow-hidden">
+                            <button onclick="prevCalendarPeriod()" class="p-1.5 hover:bg-slate-100"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <button onclick="todayCalendarPeriod()" class="px-2 text-xs font-semibold hover:bg-slate-100">Today</button>
+                            <button onclick="nextCalendarPeriod()" class="p-1.5 hover:bg-slate-100"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg">
+                        <button onclick="setCalendarMode('month')" id="cal-mode-month" class="px-3 py-1 rounded-md text-xs font-medium bg-white shadow-sm">Month</button>
+                        <button onclick="setCalendarMode('week')" id="cal-mode-week" class="px-3 py-1 rounded-md text-xs font-medium text-slate-600">Week</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4">
+                    <div id="calendar-grid" class="min-h-[500px]"></div>
+                </div>
+            </section>
+
+            <!-- 4. COURSES & LECTURES VIEW -->
+            <section id="view-courses" class="space-y-6 hidden">
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">Courses & Lectures Hierarchy</h2>
+                        <p class="text-xs text-slate-500">Track independent study task repetition for every lecture</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="openModal('add-course-modal')" class="bg-slate-800 hover:bg-slate-900 text-white text-xs px-3 py-2 rounded-lg font-medium">
+                            + New Course
+                        </button>
+                        <button onclick="openModal('add-lecture-modal')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-medium">
+                            + New Lecture
+                        </button>
+                    </div>
+                </div>
+
+                <div id="container-courses-list" class="space-y-4"></div>
+            </section>
+
+            <!-- 5. LECTURE DETAIL VIEW -->
+            <section id="view-lecture-detail" class="space-y-6 hidden">
+                <div id="container-lecture-detail"></div>
+            </section>
+
+            <!-- 6. WORKLOAD MANAGER VIEW -->
+            <section id="view-workload" class="space-y-6 hidden">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-900">Study Load Density</h2>
+                            <p class="text-xs text-slate-500">Analyze review distribution over the next 14 days and prevent burnout</p>
+                        </div>
+                        <button onclick="redistributeOverload()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-2 rounded-lg font-medium flex items-center space-x-1 shadow-sm">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                            <span>Smart Redistribute Heavy Days</span>
+                        </button>
+                    </div>
+
+                    <div id="workload-chart-container" class="pt-4 border-t border-slate-100">
+                        <div id="workload-bar-chart" class="flex items-end justify-between h-48 pt-6 px-2 border-b border-slate-200"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. TEMPLATES VIEW -->
+            <section id="view-templates" class="space-y-6 hidden">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-900">Recurring Task Templates</h2>
+                            <p class="text-xs text-slate-500">Default study methods automatically attached when creating new lectures</p>
+                        </div>
+                        <button onclick="addNewTemplatePrompt()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-medium">
+                            + Add Template Method
+                        </button>
+                    </div>
+                    <div id="container-templates-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-3"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODALS & OVERLAYS -->
+
+    <!-- Quick Add / Record Study Modal -->
+    <div id="quick-add-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5 text-blue-600"></i>
+                    <h3 class="text-lg font-bold text-slate-900">Record Study Session</h3>
+                </div>
+                <button onclick="closeModal('quick-add-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form id="form-quick-add" onsubmit="handleQuickAddSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Course</label>
+                    <select id="qa-course-select" onchange="updateLectureDropdown()" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500" required></select>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-semibold text-slate-700">Lecture</label>
+                        <button type="button" onclick="promptNewLectureInModal()" class="text-xs text-blue-600 hover:underline">+ New Lecture</button>
+                    </div>
+                    <select id="qa-lecture-select" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500" required></select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Study Method / Task Type</label>
+                    <select id="qa-task-type" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500" required>
+                        <option value="Practice Questions">Practice Questions</option>
+                        <option value="Drawing">Drawing / Diagrams</option>
+                        <option value="Whiteboard Recall">Whiteboard Recall</option>
+                        <option value="Flashcards">Flashcards / Anki</option>
+                        <option value="Notes Review">Notes Review</option>
+                        <option value="Labeling Practice">Labeling Practice</option>
+                        <option value="Practice Practical">Practice Practical</option>
+                        <option value="Custom Task">Custom Task</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Date Completed</label>
+                        <input type="date" id="qa-date-completed" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Next Review In</label>
+                        <select id="qa-next-review-schedule" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
+                            <option value="auto">Automatic Spaced Repetition</option>
+                            <option value="1">Tomorrow (1 day)</option>
+                            <option value="2">2 Days</option>
+                            <option value="3">3 Days</option>
+                            <option value="5">5 Days</option>
+                            <option value="7">7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30">30 Days</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal('quick-add-modal')" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                    <button type="submit" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm">Save Study Session</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rating Modal (Anki Rating) -->
+    <div id="rating-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5">
+            <div class="text-center space-y-1 border-b border-slate-100 pb-3">
+                <span id="rate-course-tag" class="text-xs uppercase font-bold tracking-wider text-blue-600">Head & Neck</span>
+                <h3 id="rate-lecture-title" class="text-lg font-bold text-slate-900">Development of Orofacial Structures</h3>
+                <div id="rate-task-badge" class="inline-block text-xs px-2.5 py-1 rounded-full font-semibold bg-slate-100 text-slate-700 mt-1">
+                    Practice Questions
+                </div>
+            </div>
+
+            <p class="text-center text-sm text-slate-600">How well did you recall or perform this study task?</p>
+
+            <!-- 4 Anki Rating Buttons -->
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="submitRating('Again')" class="flex flex-col items-center justify-center p-3 rounded-xl bg-red-50 border border-red-200 hover:bg-red-100 transition group">
+                    <span class="text-sm font-bold text-red-700">Again</span>
+                    <span class="text-xs text-red-500 mt-0.5">Struggled badly</span>
+                    <span id="rate-next-again" class="text-[10px] font-semibold text-red-600 bg-red-200/60 px-2 py-0.5 rounded-full mt-2">1 day</span>
+                </button>
+
+                <button onclick="submitRating('Hard')" class="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 transition group">
+                    <span class="text-sm font-bold text-amber-700">Hard</span>
+                    <span class="text-xs text-amber-600 mt-0.5">Remembered some</span>
+                    <span id="rate-next-hard" class="text-[10px] font-semibold text-amber-700 bg-amber-200/60 px-2 py-0.5 rounded-full mt-2">2-3 days</span>
+                </button>
+
+                <button onclick="submitRating('Good')" class="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 transition group">
+                    <span class="text-sm font-bold text-blue-700">Good</span>
+                    <span class="text-xs text-blue-600 mt-0.5">Remembered most</span>
+                    <span id="rate-next-good" class="text-[10px] font-semibold text-blue-700 bg-blue-200/60 px-2 py-0.5 rounded-full mt-2">5-7 days</span>
+                </button>
+
+                <button onclick="submitRating('Easy')" class="flex flex-col items-center justify-center p-3 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition group">
+                    <span class="text-sm font-bold text-emerald-700">Easy</span>
+                    <span class="text-xs text-emerald-600 mt-0.5">Mastered perfectly</span>
+                    <span id="rate-next-easy" class="text-[10px] font-semibold text-emerald-700 bg-emerald-200/60 px-2 py-0.5 rounded-full mt-2">12-14 days</span>
+                </button>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                <button onclick="openRescheduleForCurrentTask()" class="text-xs text-slate-500 hover:text-slate-800 underline">Manual Reschedule...</button>
+                <button onclick="closeModal('rating-modal')" class="text-xs text-slate-400 hover:text-slate-600">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reschedule Modal -->
+    <div id="reschedule-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                <h3 class="text-base font-bold text-slate-900">Manual Reschedule</h3>
+                <button onclick="closeModal('reschedule-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <div class="space-y-2">
+                <button onclick="applyReschedule(1)" class="w-full text-left px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800">Tomorrow (+1 day)</button>
+                <button onclick="applyReschedule(2)" class="w-full text-left px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800">+2 Days</button>
+                <button onclick="applyReschedule(3)" class="w-full text-left px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800">+3 Days</button>
+                <button onclick="applyReschedule(7)" class="w-full text-left px-3 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800">+1 Week (+7 days)</button>
+                
+                <div class="pt-2">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Pick Exact Date</label>
+                    <input type="date" id="custom-reschedule-date" onchange="applyCustomRescheduleDate(this.value)" class="w-full border border-slate-300 rounded-lg p-2 text-xs">
+                </div>
+
+                <div class="pt-2 flex justify-between border-t border-slate-100">
+                    <button onclick="resetTaskSchedule()" class="text-xs text-red-600 hover:underline">Reset Schedule</button>
+                    <button onclick="skipCurrentTaskReview()" class="text-xs text-slate-500 hover:underline">Skip Review</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Course Modal -->
+    <div id="add-course-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Create New Course</h3>
+            <input type="text" id="new-course-name" placeholder="e.g. Head & Neck, Neuroanatomy" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeModal('add-course-modal')" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button onclick="createCourseFromModal()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Lecture Modal -->
+    <div id="add-lecture-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4">
+            <h3 class="text-base font-bold text-slate-900">Add New Lecture</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Course</label>
+                    <select id="new-lecture-course-select" class="w-full border border-slate-300 rounded-lg p-2 text-xs"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Lecture Title</label>
+                    <input type="text" id="new-lecture-title" placeholder="e.g. Cranial Cavity & Meninges" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Apply Task Templates</label>
+                    <div id="new-lecture-templates-checkboxes" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"></div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closeModal('add-lecture-modal')" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button onclick="createLectureFromModal()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">Add Lecture</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC & APPLICATION ENGINE -->
+    <script>
+        // --- CONSTANTS & DEFAULT TEMPLATES ---
+        const DEFAULT_TEMPLATES = [
+            "Practice Questions",
+            "Whiteboard Recall",
+            "Drawing",
+            "Flashcards",
+            "Notes Review",
+            "Labeling Practice",
+            "Practice Practical"
+        ];
+
+        // Global State Variables
+        let appState = {
+            courses: [],      // { id, name }
+            lectures: [],     // { id, courseId, title, createdAt }
+            tasks: [],        // { id, lectureId, taskType, customName, repetition, easeFactor, interval, lastCompleted, dueDate, history, status }
+            templates: [...DEFAULT_TEMPLATES]
+        };
+
+        let currentActiveTaskForRating = null;
+        let calendarCurrentDate = new Date(2026, 9, 5); // Default anchored near current date Oct 2026
+        let calendarMode = 'month';
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            lucide.createIcons();
+            document.getElementById('qa-date-completed').value = getTodayISO();
+            document.getElementById('today-date-display').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+
+            loadLocalStorageData();
+            refreshUI();
+        };
+
+        function getTodayISO() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function addDaysToISO(dateISO, days) {
+            const date = new Date(dateISO + 'T00:00:00');
+            date.setDate(date.getDate() + days);
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
+        function getDaysDiff(dateISO1, dateISO2) {
+            const d1 = new Date(dateISO1 + 'T00:00:00');
+            const d2 = new Date(dateISO2 + 'T00:00:00');
+            const diffTime = d2.getTime() - d1.getTime();
+            return Math.floor(diffTime / (1000 * 3600 * 24));
+        }
+
+        function loadLocalStorageData() {
+            const saved = localStorage.getItem('anki_task_med_data');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch(e) {
+                    console.error("Failed to parse saved state", e);
+                    seedMockData();
+                }
+            } else {
+                seedMockData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('anki_task_med_data', JSON.stringify(appState));
+        }
+
+        function seedMockData() {
+            const todayISO = getTodayISO();
+            const yesterdayISO = addDaysToISO(todayISO, -1);
+            const twoDaysAgoISO = addDaysToISO(todayISO, -2);
+
+            appState.courses = [
+                { id: 'c1', name: 'Head & Neck Anatomy' },
+                { id: 'c2', name: 'Neuroanatomy' },
+                { id: 'c3', name: 'Pharmacology' }
+            ];
+
+            appState.lectures = [
+                { id: 'l1', courseId: 'c1', title: 'Development of Orofacial Structures', createdAt: twoDaysAgoISO },
+                { id: 'l2', courseId: 'c1', title: 'Cranial Cavity & Meninges', createdAt: twoDaysAgoISO },
+                { id: 'l3', courseId: 'c2', title: 'Autonomic Nervous System Pathways', createdAt: twoDaysAgoISO },
+                { id: 'l4', courseId: 'c3', title: 'Anti-hypertensive Drugs Mechanism', createdAt: twoDaysAgoISO }
+            ];
+
+            // Independent schedules for tasks under l1 (Development of Orofacial Structures)
+            appState.tasks = [
+                {
+                    id: 't1',
+                    lectureId: 'l1',
+                    taskType: 'Practice Questions',
+                    repetition: 1,
+                    easeFactor: 2.5,
+                    interval: 2,
+                    lastCompleted: twoDaysAgoISO,
+                    dueDate: todayISO, // Due Today
+                    history: [{ date: twoDaysAgoISO, rating: 'Good', interval: 2 }],
+                    status: 'Learning'
+                },
+                {
+                    id: 't2',
+                    lectureId: 'l1',
+                    taskType: 'Drawing',
+                    repetition: 1,
+                    easeFactor: 2.5,
+                    interval: 3,
+                    lastCompleted: twoDaysAgoISO,
+                    dueDate: addDaysToISO(todayISO, 1), // Tomorrow
+                    history: [{ date: twoDaysAgoISO, rating: 'Good', interval: 3 }],
+                    status: 'Learning'
+                },
+                {
+                    id: 't3',
+                    lectureId: 'l1',
+                    taskType: 'Whiteboard Recall',
+                    repetition: 0,
+                    easeFactor: 2.3,
+                    interval: 1,
+                    lastCompleted: twoDaysAgoISO,
+                    dueDate: yesterdayISO, // Overdue by 1 day
+                    history: [{ date: twoDaysAgoISO, rating: 'Again', interval: 1 }],
+                    status: 'Learning'
+                },
+                {
+                    id: 't4',
+                    lectureId: 'l1',
+                    taskType: 'Flashcards',
+                    repetition: 3,
+                    easeFactor: 2.6,
+                    interval: 7,
+                    lastCompleted: yesterdayISO,
+                    dueDate: addDaysToISO(todayISO, 6), // Future
+                    history: [{ date: yesterdayISO, rating: 'Easy', interval: 7 }],
+                    status: 'Reviewing'
+                },
+                {
+                    id: 't5',
+                    lectureId: 'l2',
+                    taskType: 'Whiteboard Recall',
+                    repetition: 1,
+                    easeFactor: 2.5,
+                    interval: 2,
+                    lastCompleted: addDaysToISO(todayISO, -3),
+                    dueDate: yesterdayISO, // Overdue
+                    history: [{ date: addDaysToISO(todayISO, -3), rating: 'Good', interval: 2 }],
+                    status: 'Learning'
+                },
+                {
+                    id: 't6',
+                    lectureId: 'l2',
+                    taskType: 'Drawing',
+                    repetition: 0,
+                    easeFactor: 2.5,
+                    interval: 1,
+                    lastCompleted: todayISO,
+                    dueDate: addDaysToISO(todayISO, 1),
+                    history: [{ date: todayISO, rating: 'Good', interval: 1 }],
+                    status: 'Learning'
+                },
+                {
+                    id: 't7',
+                    lectureId: 'l3',
+                    taskType: 'Practice Questions',
+                    repetition: 2,
+                    easeFactor: 2.5,
+                    interval: 4,
+                    lastCompleted: addDaysToISO(todayISO, -4),
+                    dueDate: todayISO, // Due Today
+                    history: [{ date: addDaysToISO(todayISO, -4), rating: 'Good', interval: 4 }],
+                    status: 'Learning'
+                }
+            ];
+
+            appState.templates = [...DEFAULT_TEMPLATES];
+            saveData();
+        }
+
+        function switchTab(tabId) {
+            const views = ['today', 'upcoming', 'calendar', 'courses', 'lecture-detail', 'workload', 'templates'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (el) el.classList.add('hidden');
+
+                const navEl = document.getElementById(`nav-${v}`);
+                if (navEl) {
+                    navEl.classList.remove('bg-blue-50', 'text-blue-700');
+                    navEl.classList.add('text-slate-600');
+                }
+            });
+
+            const activeView = document.getElementById(`view-${tabId}`);
+            if (activeView) activeView.classList.remove('hidden');
+
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.classList.add('bg-blue-50', 'text-blue-700');
+                activeNav.classList.remove('text-slate-600');
+            }
+
+            refreshUI();
+        }
+
+        function refreshUI() {
+            renderTodayDashboard();
+            renderUpcomingView();
+            renderCalendarView();
+            renderCoursesView();
+            renderWorkloadView();
+            renderTemplatesView();
+            updateSidebarCounts();
+            lucide.createIcons();
+        }
+
+        // --- HELPERS FOR DATA ACCESS ---
+        function getCourseById(courseId) {
+            return appState.courses.find(c => c.id === courseId) || { name: 'Unknown Course' };
+        }
+
+        function getLectureById(lectureId) {
+            return appState.lectures.find(l => l.id === lectureId) || { title: 'Unknown Lecture', courseId: '' };
+        }
+
+        function renderTodayDashboard() {
+            const todayISO = getTodayISO();
+
+            const overdueTasks = appState.tasks.filter(t => t.dueDate < todayISO);
+            const dueTodayTasks = appState.tasks.filter(t => t.dueDate === todayISO);
+            const completedTodayTasks = appState.tasks.filter(t => t.lastCompleted === todayISO && t.dueDate > todayISO);
+
+            // Stat counters
+            document.getElementById('stat-overdue').innerText = overdueTasks.length;
+            document.getElementById('stat-due-today').innerText = dueTodayTasks.length;
+            document.getElementById('stat-completed-today').innerText = completedTodayTasks.length;
+            document.getElementById('stat-remaining').innerText = overdueTasks.length + dueTodayTasks.length;
+
+            // Overdue section
+            const overdueWrapper = document.getElementById('section-overdue-wrapper');
+            const overdueContainer = document.getElementById('container-overdue-tasks');
+            if (overdueTasks.length > 0) {
+                overdueWrapper.classList.remove('hidden');
+                document.getElementById('badge-overdue-header').innerText = `${overdueTasks.length} overdue`;
+                overdueContainer.innerHTML = overdueTasks.map(t => createTodayTaskCardHTML(t, true)).join('');
+            } else {
+                overdueWrapper.classList.add('hidden');
+                overdueContainer.innerHTML = '';
+            }
+
+            // Today section
+            const todayContainer = document.getElementById('container-today-tasks');
+            if (dueTodayTasks.length > 0) {
+                todayContainer.innerHTML = dueTodayTasks.map(t => createTodayTaskCardHTML(t, false)).join('');
+            } else {
+                todayContainer.innerHTML = `
+                    <div class="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-3">
+                        <div class="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                            <i data-lucide="check-circle" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-bold text-slate-800">All caught up for today!</h3>
+                        <p class="text-xs text-slate-500">No pending reviews scheduled for today. Great job!</p>
+                    </div>
+                `;
+            }
+
+            // Completed Today section
+            const completedWrapper = document.getElementById('section-completed-wrapper');
+            const completedContainer = document.getElementById('container-completed-tasks');
+            if (completedTodayTasks.length > 0) {
+                completedWrapper.classList.remove('hidden');
+                document.getElementById('badge-completed-header').innerText = completedTodayTasks.length;
+                completedContainer.innerHTML = completedTodayTasks.map(t => createCompletedTaskCardHTML(t)).join('');
+            } else {
+                completedWrapper.classList.add('hidden');
+                completedContainer.innerHTML = '';
+            }
+        }
+
+        function createTodayTaskCardHTML(task, isOverdue) {
+            const lecture = getLectureById(task.lectureId);
+            const course = getCourseById(lecture.courseId);
+            const todayISO = getTodayISO();
+
+            let overdueBadge = '';
+            if (isOverdue) {
+                const daysLate = getDaysDiff(task.dueDate, todayISO);
+                overdueBadge = `<span class="bg-red-100 text-red-700 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <i data-lucide="alert-circle" class="w-3 h-3"></i> ${daysLate}d Overdue
+                </span>`;
+            }
+
+            return `
+                <div class="bg-white p-4 rounded-xl border ${isOverdue ? 'border-red-200 bg-red-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-semibold text-blue-600">${escapeHTML(course.name)}</span>
+                            <span class="text-slate-300">•</span>
+                            <span class="text-xs text-slate-500 font-medium">${escapeHTML(lecture.title)}</span>
+                            ${overdueBadge}
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <h3 class="font-bold text-slate-900 text-base">${escapeHTML(task.taskType)}</h3>
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">${task.status || 'Learning'}</span>
+                        </div>
+                        <div class="text-xs text-slate-500 flex items-center space-x-3">
+                            <span>Last Review: ${task.lastCompleted ? task.lastCompleted : 'Never'}</span>
+                            <span>Interval: ${task.interval || 0}d</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Action Rating Buttons -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="openRatingModal('${task.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm flex items-center space-x-1 transition">
+                            <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                            <span>Complete Review</span>
+                        </button>
+                        <button onclick="openRescheduleModal('${task.id}')" title="Manual Reschedule" class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                            <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createCompletedTaskCardHTML(task) {
+            const lecture = getLectureById(task.lectureId);
+            const course = getCourseById(lecture.courseId);
+
+            return `
+                <div class="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100 flex justify-between items-center">
+                    <div class="space-y-0.5">
+                        <div class="text-xs text-emerald-800 font-semibold">${escapeHTML(course.name)} → ${escapeHTML(lecture.title)}</div>
+                        <div class="text-sm font-bold text-slate-800">${escapeHTML(task.taskType)}</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Next: ${task.dueDate}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openRatingModal(taskId) {
+            const task = appState.tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            currentActiveTaskForRating = task;
+            const lecture = getLectureById(task.lectureId);
+            const course = getCourseById(lecture.courseId);
+
+            document.getElementById('rate-course-tag').innerText = course.name;
+            document.getElementById('rate-lecture-title').innerText = lecture.title;
+            document.getElementById('rate-task-badge').innerText = task.taskType;
+
+            // Calculate preview next review intervals
+            const interval = task.interval || 1;
+            const easeFactor = task.easeFactor || 2.5;
+
+            document.getElementById('rate-next-again').innerText = '1 day';
+            document.getElementById('rate-next-hard').innerText = `${Math.max(2, Math.round(interval * 1.2))} days`;
+            document.getElementById('rate-next-good').innerText = `${interval === 0 ? 1 : interval === 1 ? 3 : Math.round(interval * easeFactor)} days`;
+            document.getElementById('rate-next-easy').innerText = `${interval === 0 ? 4 : Math.round(interval * easeFactor * 1.3)} days`;
+
+            openModal('rating-modal');
+        }
+
+        function submitRating(rating) {
+            if (!currentActiveTaskForRating) return;
+
+            const task = currentActiveTaskForRating;
+            const todayISO = getTodayISO();
+
+            let easeFactor = task.easeFactor || 2.5;
+            let repetition = task.repetition || 0;
+            let interval = task.interval || 0;
+            let nextInterval = 1;
+
+            if (rating === 'Again') {
+                repetition = 0;
+                easeFactor = Math.max(1.3, easeFactor - 0.2);
+                nextInterval = 1;
+            } else if (rating === 'Hard') {
+                easeFactor = Math.max(1.3, easeFactor - 0.15);
+                nextInterval = Math.max(2, Math.round(interval * 1.2));
+                repetition += 1;
+            } else if (rating === 'Good') {
+                if (interval === 0) nextInterval = 1;
+                else if (interval === 1) nextInterval = 3;
+                else nextInterval = Math.round(interval * easeFactor);
+                repetition += 1;
+            } else if (rating === 'Easy') {
+                if (interval === 0) nextInterval = 4;
+                else nextInterval = Math.round(interval * easeFactor * 1.3);
+                easeFactor += 0.15;
+                repetition += 1;
+            }
+
+            // Status determination
+            let status = 'Learning';
+            if (nextInterval >= 21 || repetition >= 4) {
+                status = 'Mastered';
+            } else if (nextInterval >= 5) {
+                status = 'Reviewing';
+            }
+
+            // Update Task object
+            task.repetition = repetition;
+            task.easeFactor = easeFactor;
+            task.interval = nextInterval;
+            task.lastCompleted = todayISO;
+            task.dueDate = addDaysToISO(todayISO, nextInterval); // Rescheduled from ACTUAL completion date
+            task.status = status;
+
+            if (!task.history) task.history = [];
+            task.history.push({
+                date: todayISO,
+                rating: rating,
+                interval: nextInterval
+            });
+
+            saveData();
+            closeModal('rating-modal');
+            refreshUI();
+        }
+
+        function openRescheduleModal(taskId) {
+            const task = appState.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            currentActiveTaskForRating = task;
+            openModal('reschedule-modal');
+        }
+
+        function openRescheduleForCurrentTask() {
+            closeModal('rating-modal');
+            openModal('reschedule-modal');
+        }
+
+        function applyReschedule(days) {
+            if (!currentActiveTaskForRating) return;
+            const todayISO = getTodayISO();
+            currentActiveTaskForRating.dueDate = addDaysToISO(todayISO, days);
+            saveData();
+            closeModal('reschedule-modal');
+            refreshUI();
+        }
+
+        function applyCustomRescheduleDate(dateISO) {
+            if (!currentActiveTaskForRating || !dateISO) return;
+            currentActiveTaskForRating.dueDate = dateISO;
+            saveData();
+            closeModal('reschedule-modal');
+            refreshUI();
+        }
+
+        function skipCurrentTaskReview() {
+            if (!currentActiveTaskForRating) return;
+            const todayISO = getTodayISO();
+            currentActiveTaskForRating.dueDate = addDaysToISO(todayISO, 3);
+            saveData();
+            closeModal('reschedule-modal');
+            refreshUI();
+        }
+
+        function resetTaskSchedule() {
+            if (!currentActiveTaskForRating) return;
+            const todayISO = getTodayISO();
+            currentActiveTaskForRating.repetition = 0;
+            currentActiveTaskForRating.interval = 1;
+            currentActiveTaskForRating.easeFactor = 2.5;
+            currentActiveTaskForRating.dueDate = todayISO;
+            currentActiveTaskForRating.status = 'Learning';
+            saveData();
+            closeModal('reschedule-modal');
+            refreshUI();
+        }
+
+        function handleQuickAddSubmit(e) {
+            e.preventDefault();
+            const courseId = document.getElementById('qa-course-select').value;
+            const lectureId = document.getElementById('qa-lecture-select').value;
+            const taskType = document.getElementById('qa-task-type').value;
+            const dateCompleted = document.getElementById('qa-date-completed').value;
+            const scheduleOpt = document.getElementById('qa-next-review-schedule').value;
+
+            if (!courseId || !lectureId) {
+                alert('Please select both course and lecture.');
+                return;
+            }
+
+            let nextDays = 2;
+            if (scheduleOpt === 'auto') {
+                nextDays = 3;
+            } else {
+                nextDays = parseInt(scheduleOpt, 10);
+            }
+
+            const dueDate = addDaysToISO(dateCompleted, nextDays);
+
+            // Check if existing task for this lecture + taskType exists
+            let task = appState.tasks.find(t => t.lectureId === lectureId && t.taskType === taskType);
+            if (!task) {
+                task = {
+                    id: 't_' + Date.now(),
+                    lectureId: lectureId,
+                    taskType: taskType,
+                    repetition: 1,
+                    easeFactor: 2.5,
+                    interval: nextDays,
+                    lastCompleted: dateCompleted,
+                    dueDate: dueDate,
+                    history: [{ date: dateCompleted, rating: 'Good', interval: nextDays }],
+                    status: nextDays >= 21 ? 'Mastered' : nextDays >= 5 ? 'Reviewing' : 'Learning'
+                };
+                appState.tasks.push(task);
+            } else {
+                task.lastCompleted = dateCompleted;
+                task.interval = nextDays;
+                task.dueDate = dueDate;
+                task.repetition = (task.repetition || 0) + 1;
+                if (!task.history) task.history = [];
+                task.history.push({ date: dateCompleted, rating: 'Manual Quick Add', interval: nextDays });
+            }
+
+            saveData();
+            closeModal('quick-add-modal');
+            refreshUI();
+        }
+
+        function updateLectureDropdown() {
+            const courseId = document.getElementById('qa-course-select').value;
+            const lectureSelect = document.getElementById('qa-lecture-select');
+            const filteredLectures = appState.lectures.filter(l => l.courseId === courseId);
+
+            lectureSelect.innerHTML = filteredLectures.map(l => `<option value="${l.id}">${escapeHTML(l.title)}</option>`).join('');
+        }
+
+        function renderUpcomingView() {
+            const container = document.getElementById('container-upcoming-groups');
+            const courseFilter = document.getElementById('filter-course').value;
+            const taskTypeFilter = document.getElementById('filter-task-type').value;
+            const statusFilter = document.getElementById('filter-status').value;
+
+            // Populate course filter dropdown
+            const courseSelect = document.getElementById('filter-course');
+            courseSelect.innerHTML = `<option value="ALL">All Courses</option>` + appState.courses.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+            courseSelect.value = courseFilter;
+
+            // Populate task type filter
+            const taskTypeSelect = document.getElementById('filter-task-type');
+            taskTypeSelect.innerHTML = `<option value="ALL">All Task Types</option>` + appState.templates.map(t => `<option value="${t}">${escapeHTML(t)}</option>`).join('');
+            taskTypeSelect.value = taskTypeFilter;
+
+            const todayISO = getTodayISO();
+
+            // Filter tasks
+            let filteredTasks = appState.tasks.filter(t => {
+                const lecture = getLectureById(t.lectureId);
+                if (courseFilter !== 'ALL' && lecture.courseId !== courseFilter) return false;
+                if (taskTypeFilter !== 'ALL' && t.taskType !== taskTypeFilter) return false;
+                if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+                return true;
+            });
+
+            // Group by date
+            const groups = {};
+            filteredTasks.forEach(t => {
+                const groupKey = t.dueDate;
+                if (!groups[groupKey]) groups[groupKey] = [];
+                groups[groupKey].push(t);
+            });
+
+            const sortedDates = Object.keys(groups).sort();
+
+            if (sortedDates.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium">No upcoming tasks found matching filters.</div>`;
+                return;
+            }
+
+            container.innerHTML = sortedDates.map(dateISO => {
+                const diffDays = getDaysDiff(todayISO, dateISO);
+                let label = dateISO;
+                if (diffDays < 0) label = `🔴 ${Math.abs(diffDays)} Days Overdue (${dateISO})`;
+                else if (diffDays === 0) label = `🟠 Due Today (${dateISO})`;
+                else if (diffDays === 1) label = `🟡 Tomorrow (${dateISO})`;
+                else if (diffDays <= 7) label = `🔵 In ${diffDays} Days (${dateISO})`;
+                else label = `Future: ${dateISO}`;
+
+                const taskCards = groups[dateISO].map(t => {
+                    const lecture = getLectureById(t.lectureId);
+                    const course = getCourseById(lecture.courseId);
+
+                    return `
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center hover:bg-slate-50 transition">
+                            <div>
+                                <span class="text-xs font-semibold text-blue-600">${escapeHTML(course.name)} → ${escapeHTML(lecture.title)}</span>
+                                <h4 class="font-bold text-slate-800 text-sm">${escapeHTML(t.taskType)}</h4>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs bg-slate-100 font-medium px-2 py-0.5 rounded text-slate-600">${t.status || 'Learning'}</span>
+                                <button onclick="openRatingModal('${t.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-lg font-semibold">Review</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-2 border-b border-slate-200 pb-1">
+                            <h3 class="font-bold text-slate-800 text-sm">${label}</h3>
+                            <span class="text-xs bg-slate-200 font-semibold px-2 py-0.5 rounded-full text-slate-700">${groups[dateISO].length} tasks</span>
+                        </div>
+                        <div class="space-y-2">${taskCards}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCalendarView() {
+            const grid = document.getElementById('calendar-grid');
+            const year = calendarCurrentDate.getFullYear();
+            const month = calendarCurrentDate.getMonth();
+
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            document.getElementById('calendar-month-year').innerText = `${monthNames[month]} ${year}`;
+
+            if (calendarMode === 'month') {
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                let html = `
+                    <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 mb-2">
+                        <div>SUN</div><div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 auto-rows-fr">
+                `;
+
+                // Empty cells before start of month
+                for (let i = 0; i < firstDay; i++) {
+                    html += `<div class="bg-slate-50/50 rounded-lg h-24 p-1"></div>`;
+                }
+
+                const todayISO = getTodayISO();
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const monthStr = String(month + 1).padStart(2, '0');
+                    const dayStr = String(day).padStart(2, '0');
+                    const cellDateISO = `${year}-${monthStr}-${dayStr}`;
+
+                    const isToday = cellDateISO === todayISO;
+                    const tasksForDay = appState.tasks.filter(t => t.dueDate === cellDateISO);
+
+                    html += `
+                        <div class="bg-white border ${isToday ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200'} rounded-lg h-28 p-1.5 flex flex-col justify-start overflow-hidden">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-xs font-bold ${isToday ? 'text-blue-600' : 'text-slate-700'}">${day}</span>
+                                ${tasksForDay.length > 0 ? `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 rounded-full">${tasksForDay.length}</span>` : ''}
+                            </div>
+                            <div class="space-y-1 overflow-y-auto custom-scrollbar flex-1">
+                                ${tasksForDay.map(t => {
+                                    const lecture = getLectureById(t.lectureId);
+                                    return `
+                                        <div onclick="openRatingModal('${t.id}')" title="${escapeHTML(lecture.title)} - ${escapeHTML(t.taskType)}" class="bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] p-1 rounded font-medium truncate cursor-pointer">
+                                            ${escapeHTML(t.taskType)}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+                grid.innerHTML = html;
+            } else {
+                // Week view placeholder
+                grid.innerHTML = `<div class="p-8 text-center text-slate-500">Switching back to month view...</div>`;
+                setCalendarMode('month');
+            }
+        }
+
+        function prevCalendarPeriod() {
+            calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1);
+            renderCalendarView();
+        }
+
+        function nextCalendarPeriod() {
+            calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1);
+            renderCalendarView();
+        }
+
+        function todayCalendarPeriod() {
+            calendarCurrentDate = new Date();
+            renderCalendarView();
+        }
+
+        function setCalendarMode(mode) {
+            calendarMode = mode;
+            document.getElementById('cal-mode-month').className = mode === 'month' ? 'px-3 py-1 rounded-md text-xs font-medium bg-white shadow-sm' : 'px-3 py-1 rounded-md text-xs font-medium text-slate-600';
+            document.getElementById('cal-mode-week').className = mode === 'week' ? 'px-3 py-1 rounded-md text-xs font-medium bg-white shadow-sm' : 'px-3 py-1 rounded-md text-xs font-medium text-slate-600';
+            renderCalendarView();
+        }
+
+        function renderCoursesView() {
+            const container = document.getElementById('container-courses-list');
+
+            if (appState.courses.length === 0) {
+                container.innerHTML = `<div class="p-8 bg-white border border-slate-200 rounded-xl text-center text-slate-500">No courses created yet. Click "+ New Course" above.</div>`;
+                return;
+            }
+
+            container.innerHTML = appState.courses.map(course => {
+                const lectures = appState.lectures.filter(l => l.courseId === course.id);
+
+                const lectureCards = lectures.map(lecture => {
+                    const tasks = appState.tasks.filter(t => t.lectureId === lecture.id);
+                    const totalTasks = tasks.length;
+                    const masteredTasks = tasks.filter(t => t.status === 'Mastered').length;
+                    const reviewingTasks = tasks.filter(t => t.status === 'Reviewing').length;
+                    const learningTasks = tasks.filter(t => t.status === 'Learning').length;
+
+                    // Compute overall status
+                    let overallStatus = 'New';
+                    if (totalTasks > 0) {
+                        if (masteredTasks === totalTasks) overallStatus = 'Mastered';
+                        else if (masteredTasks > 0 || reviewingTasks > 0) overallStatus = 'Reviewing';
+                        else if (learningTasks > 0) overallStatus = 'Learning';
+                    }
+
+                    const progressPercent = totalTasks > 0 ? Math.round((masteredTasks / totalTasks) * 100) : 0;
+
+                    return `
+                        <div onclick="openLectureDetail('${lecture.id}')" class="bg-slate-50 border border-slate-200 hover:border-blue-400 rounded-xl p-4 transition cursor-pointer space-y-3">
+                            <div class="flex justify-between items-start">
+                                <h4 class="font-bold text-slate-900 text-sm hover:text-blue-600">${escapeHTML(lecture.title)}</h4>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    overallStatus === 'Mastered' ? 'bg-emerald-100 text-emerald-800' :
+                                    overallStatus === 'Reviewing' ? 'bg-blue-100 text-blue-800' :
+                                    overallStatus === 'Learning' ? 'bg-amber-100 text-amber-800' :
+                                    'bg-slate-200 text-slate-700'
+                                }">${overallStatus}</span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-xs text-slate-500">
+                                    <span>Task Mastery</span>
+                                    <span>${masteredTasks} / ${totalTasks} Mastered</span>
+                                </div>
+                                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-emerald-500 h-full transition-all" style="width: ${progressPercent}%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-200/60">
+                                <span>${totalTasks} Active Tasks</span>
+                                <span class="text-blue-600 font-semibold flex items-center">View Details <i data-lucide="chevron-right" class="w-3.5 h-3.5 ml-0.5"></i></span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                            <div class="flex items-center space-x-2">
+                                <i data-lucide="folder-open" class="w-5 h-5 text-blue-600"></i>
+                                <h3 class="text-lg font-bold text-slate-900">${escapeHTML(course.name)}</h3>
+                            </div>
+                            <span class="text-xs text-slate-500 font-medium">${lectures.length} Lectures</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            ${lectureCards.length > 0 ? lectureCards : '<div class="text-xs text-slate-400 italic col-span-full py-2">No lectures in this course yet.</div>'}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openLectureDetail(lectureId) {
+            const lecture = getLectureById(lectureId);
+            const course = getCourseById(lecture.courseId);
+            const tasks = appState.tasks.filter(t => t.lectureId === lectureId);
+
+            const detailContainer = document.getElementById('container-lecture-detail');
+
+            const taskRowsHTML = tasks.map(t => {
+                return `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 text-xs">
+                        <td class="py-3 px-4 font-bold text-slate-800">${escapeHTML(t.taskType)}</td>
+                        <td class="py-3 px-4 text-slate-600">${t.lastCompleted || 'Never'}</td>
+                        <td class="py-3 px-4 font-semibold text-blue-600">${t.dueDate}</td>
+                        <td class="py-3 px-4 text-slate-600">${t.repetition || 0}</td>
+                        <td class="py-3 px-4 text-slate-600">${t.interval || 0}d</td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                t.status === 'Mastered' ? 'bg-emerald-100 text-emerald-800' :
+                                t.status === 'Reviewing' ? 'bg-blue-100 text-blue-800' :
+                                'bg-amber-100 text-amber-800'
+                            }">${t.status || 'Learning'}</span>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                            <button onclick="openRatingModal('${t.id}')" class="bg-blue-600 text-white font-semibold text-[11px] px-2.5 py-1 rounded hover:bg-blue-700">Review</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            detailContainer.innerHTML = `
+                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+                    <div class="flex justify-between items-start border-b border-slate-100 pb-4">
+                        <div>
+                            <button onclick="switchTab('courses')" class="text-xs text-blue-600 hover:underline flex items-center mb-1">
+                                <i data-lucide="arrow-left" class="w-3.5 h-3.5 mr-1"></i> Back to Courses
+                            </button>
+                            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${escapeHTML(course.name)}</span>
+                            <h2 class="text-2xl font-bold text-slate-900">${escapeHTML(lecture.title)}</h2>
+                        </div>
+                        <button onclick="promptAddTaskToLecture('${lecture.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-lg font-semibold">
+                            + Add Task to Lecture
+                        </button>
+                    </div>
+
+                    <!-- Tasks Table -->
+                    <div class="space-y-3">
+                        <h3 class="text-base font-bold text-slate-800">Independent Task Schedules</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
+                                        <th class="py-2.5 px-4 rounded-l-lg">Study Task</th>
+                                        <th class="py-2.5 px-4">Last Completed</th>
+                                        <th class="py-2.5 px-4">Next Review</th>
+                                        <th class="py-2.5 px-4">Reviews</th>
+                                        <th class="py-2.5 px-4">Interval</th>
+                                        <th class="py-2.5 px-4">Status</th>
+                                        <th class="py-2.5 px-4 rounded-r-lg text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tasks.length > 0 ? taskRowsHTML : '<tr><td colspan="7" class="text-center py-4 text-xs text-slate-400">No tasks created for this lecture.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            switchTab('lecture-detail');
+        }
+
+        function promptAddTaskToLecture(lectureId) {
+            const taskType = prompt("Enter new task name/type (e.g., Practice Questions, Drawing, Labeling):");
+            if (!taskType) return;
+
+            const todayISO = getTodayISO();
+            const newTask = {
+                id: 't_' + Date.now(),
+                lectureId: lectureId,
+                taskType: taskType,
+                repetition: 0,
+                easeFactor: 2.5,
+                interval: 1,
+                lastCompleted: null,
+                dueDate: todayISO,
+                history: [],
+                status: 'Learning'
+            };
+
+            appState.tasks.push(newTask);
+            saveData();
+            openLectureDetail(lectureId);
+        }
+
+        function renderWorkloadView() {
+            const chartBarContainer = document.getElementById('workload-bar-chart');
+            const todayISO = getTodayISO();
+
+            let barsHTML = '';
+            for (let i = 0; i < 14; i++) {
+                const dateISO = addDaysToISO(todayISO, i);
+                const count = appState.tasks.filter(t => t.dueDate === dateISO).length;
+
+                const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Date(dateISO + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+
+                // Height calculation
+                const maxHeight = 30; // max expected density scale
+                const heightPercent = Math.min(100, Math.max(10, (count / maxHeight) * 100));
+
+                const isOverloaded = count >= 15;
+
+                barsHTML += `
+                    <div class="flex flex-col items-center flex-1 space-y-2">
+                        <span class="text-xs font-bold ${isOverloaded ? 'text-amber-600' : 'text-slate-700'}">${count} ${isOverloaded ? '⚠️' : ''}</span>
+                        <div class="w-full max-w-[28px] bg-slate-100 rounded-t-lg h-36 flex items-end overflow-hidden p-0.5">
+                            <div class="w-full ${isOverloaded ? 'bg-amber-500' : 'bg-blue-600'} rounded-t transition-all" style="height: ${heightPercent}%"></div>
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-500">${dayLabel}</span>
+                    </div>
+                `;
+            }
+
+            chartBarContainer.innerHTML = barsHTML;
+        }
+
+        function redistributeOverload() {
+            const todayISO = getTodayISO();
+            let movedCount = 0;
+
+            for (let i = 0; i < 14; i++) {
+                const dateISO = addDaysToISO(todayISO, i);
+                const dayTasks = appState.tasks.filter(t => t.dueDate === dateISO);
+
+                if (dayTasks.length > 12) {
+                    // Redistribute excess tasks to next day
+                    const excess = dayTasks.slice(12);
+                    excess.forEach(t => {
+                        t.dueDate = addDaysToISO(t.dueDate, 1);
+                        movedCount++;
+                    });
+                }
+            }
+
+            saveData();
+            refreshUI();
+            alert(`Redistributed ${movedCount} task reviews to adjacent lighter days.`);
+        }
+
+        function renderTemplatesView() {
+            const container = document.getElementById('container-templates-list');
+            container.innerHTML = appState.templates.map(t => {
+                return `
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl flex justify-between items-center">
+                        <span class="text-sm font-semibold text-slate-800">${escapeHTML(t)}</span>
+                        <button onclick="removeTemplate('${escapeHTML(t)}')" class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addNewTemplatePrompt() {
+            const name = prompt("Enter new recurring task template name:");
+            if (name && !appState.templates.includes(name)) {
+                appState.templates.push(name);
+                saveData();
+                renderTemplatesView();
+            }
+        }
+
+        function removeTemplate(name) {
+            appState.templates = appState.templates.filter(t => t !== name);
+            saveData();
+            renderTemplatesView();
+        }
+
+        function handleSearch(query) {
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (!query || query.trim() === '') {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            const q = query.toLowerCase();
+            const matchingLectures = appState.lectures.filter(l => l.title.toLowerCase().includes(q));
+
+            if (matchingLectures.length === 0) {
+                dropdown.innerHTML = `<div class="p-3 text-xs text-slate-500">No matching lectures or tasks found.</div>`;
+            } else {
+                dropdown.innerHTML = matchingLectures.map(l => {
+                    const course = getCourseById(l.courseId);
+                    const tasks = appState.tasks.filter(t => t.lectureId === l.id);
+
+                    return `
+                        <div onclick="openLectureDetail('${l.id}'); document.getElementById('search-results-dropdown').classList.add('hidden');" 
+                             class="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-none space-y-1">
+                            <div class="text-[10px] font-bold text-blue-600 uppercase">${escapeHTML(course.name)}</div>
+                            <div class="text-sm font-bold text-slate-800">${escapeHTML(l.title)}</div>
+                            <div class="text-xs text-slate-500">${tasks.length} associated study tasks</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            dropdown.classList.remove('hidden');
+        }
+
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `ankitask_backup_${getTodayISO()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importData(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    if (importedState.courses && importedState.lectures && importedState.tasks) {
+                        appState = importedState;
+                        saveData();
+                        refreshUI();
+                        alert('Data successfully imported!');
+                    } else {
+                        alert('Invalid data structure in backup JSON file.');
+                    }
+                } catch(err) {
+                    alert('Error parsing JSON file.');
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                if (modalId === 'quick-add-modal') {
+                    // Populate courses select
+                    const cSelect = document.getElementById('qa-course-select');
+                    cSelect.innerHTML = appState.courses.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+                    updateLectureDropdown();
+                }
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function promptNewLectureInModal() {
+            const title = prompt("Enter new lecture title:");
+            if (!title) return;
+
+            const courseId = document.getElementById('qa-course-select').value;
+            const newLect = {
+                id: 'l_' + Date.now(),
+                courseId: courseId,
+                title: title,
+                createdAt: getTodayISO()
+            };
+
+            appState.lectures.push(newLect);
+            saveData();
+            updateLectureDropdown();
+            document.getElementById('qa-lecture-select').value = newLect.id;
+        }
+
+        function createCourseFromModal() {
+            const name = document.getElementById('new-course-name').value.trim();
+            if (!name) return;
+
+            const newCourse = { id: 'c_' + Date.now(), name: name };
+            appState.courses.push(newCourse);
+            saveData();
+            closeModal('add-course-modal');
+            document.getElementById('new-course-name').value = '';
+            refreshUI();
+        }
+
+        function createLectureFromModal() {
+            const courseSelect = document.getElementById('new-lecture-course-select');
+            const courseId = courseSelect.value;
+            const title = document.getElementById('new-lecture-title').value.trim();
+
+            if (!courseId || !title) return;
+
+            const newLecture = {
+                id: 'l_' + Date.now(),
+                courseId: courseId,
+                title: title,
+                createdAt: getTodayISO()
+            };
+
+            appState.lectures.push(newLecture);
+
+            // Add selected templates
+            const checkboxes = document.querySelectorAll('.template-checkbox:checked');
+            const todayISO = getTodayISO();
+
+            checkboxes.forEach(cb => {
+                const taskType = cb.value;
+                appState.tasks.push({
+                    id: 't_' + Math.random().toString(36).substr(2, 9),
+                    lectureId: newLecture.id,
+                    taskType: taskType,
+                    repetition: 0,
+                    easeFactor: 2.5,
+                    interval: 1,
+                    lastCompleted: null,
+                    dueDate: todayISO,
+                    history: [],
+                    status: 'Learning'
+                });
+            });
+
+            saveData();
+            closeModal('add-lecture-modal');
+            document.getElementById('new-lecture-title').value = '';
+            refreshUI();
+        }
+
+        function updateSidebarCounts() {
+            const todayISO = getTodayISO();
+            const overdueTasks = appState.tasks.filter(t => t.dueDate < todayISO);
+            const dueTodayTasks = appState.tasks.filter(t => t.dueDate === todayISO);
+            const completedTodayTasks = appState.tasks.filter(t => t.lastCompleted === todayISO && t.dueDate > todayISO);
+
+            document.getElementById('badge-due-today').innerText = overdueTasks.length + dueTodayTasks.length;
+            document.getElementById('badge-upcoming-count').innerText = appState.tasks.filter(t => t.dueDate > todayISO).length;
+            document.getElementById('badge-courses-count').innerText = appState.courses.length;
+
+            document.getElementById('side-overdue-count').innerText = overdueTasks.length;
+            document.getElementById('side-today-count').innerText = dueTodayTasks.length;
+            document.getElementById('side-completed-count').innerText = completedTodayTasks.length;
+
+            // Populate course options in add lecture modal
+            const cSelect = document.getElementById('new-lecture-course-select');
+            if (cSelect) {
+                cSelect.innerHTML = appState.courses.map(c => `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join('');
+            }
+
+            // Populate templates checkboxes
+            const cbContainer = document.getElementById('new-lecture-templates-checkboxes');
+            if (cbContainer) {
+                cbContainer.innerHTML = appState.templates.map(t => `
+                    <label class="flex items-center space-x-2">
+                        <input type="checkbox" value="${escapeHTML(t)}" class="template-checkbox rounded text-blue-600 focus:ring-blue-500" checked>
+                        <span>${escapeHTML(t)}</span>
+                    </label>
+                `).join('');
+            }
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+    </script>
+</body>
+</html>
